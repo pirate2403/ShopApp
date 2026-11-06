@@ -1,6 +1,10 @@
 using ShopApp.Models;
 using ShopApp.Services;
 using ShopApp.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Metadata;
 var pricing = new PricingService();
 var repository = new FakeRepository();
 var service = new PurchaseService(pricing, repository);
@@ -18,7 +22,20 @@ service.Save("Ivan", product, new(false, false, false, false), first.Id);
 Check(service.GetAll().Count == 1 && service.GetAll()[0].Total == 1200m, "Update");
 service.Remove(first.Id);
 Check(service.GetAll().Count == 0, "Delete");
-Console.WriteLine("All pricing, validation and repository contract checks passed.");
+// SQL Server model and migration checks without opening a network connection.
+using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+    .UseSqlServer("Server=localhost;Database=ShopLabOrm;Integrated Security=True").Options);
+var script = db.GetService<IMigrator>().GenerateScript();
+Check(script.Contains("CREATE TABLE [Purchases]") && script.Contains("CK_Purchases_Price"), "Migration DDL");
+Check(script.Contains("__EFMigrationsHistory"), "Migration history");
+var query = db.Purchases.AsNoTracking().OrderByDescending(p => p.Id).ToQueryString();
+Check(query.Contains("ORDER BY") && query.Contains("DESC"), "LINQ translation");
+var snapshot = db.GetService<IMigrationsAssembly>().ModelSnapshot!;
+var snapshotModel = db.GetService<IModelRuntimeInitializer>().Initialize(snapshot.Model, designTime: true);
+var changes = db.GetService<IMigrationsModelDiffer>().GetDifferences(
+    snapshotModel.GetRelationalModel(), db.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+Check(changes.Count == 0, "Snapshot differs from current EF model");
+Console.WriteLine("All pricing, validation, repository, migration and LINQ checks passed.");
 sealed class FakeRepository : IPurchaseRepository
 {
     private readonly List<Purchase> items = [];

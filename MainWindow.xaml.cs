@@ -5,6 +5,7 @@ using ShopApp.Models;
 using ShopApp.Services;
 using ShopApp.Data;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 namespace ShopApp;
 
 public partial class MainWindow : Window
@@ -12,7 +13,7 @@ public partial class MainWindow : Window
     private readonly IProductCatalog catalog;
     private readonly IPricingService pricing;
     private PurchaseService? purchases;
-    private SqlPurchaseRepository? repository;
+    private EfPurchaseRepository? repository;
     private bool busy;
     private bool stale;
     private bool ready;
@@ -54,14 +55,15 @@ public partial class MainWindow : Window
         if (busy) return;
         busy = true; IsEnabled = false;
         try { await operation(); }
-        catch (Exception ex) when (ex is SqlException or ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is SqlException or DbUpdateException or ArgumentException or InvalidOperationException)
         { Message($"Операция не выполнена: {ex.Message}", true); }
         finally { busy = false; IsEnabled = true; }
     }
     private async Task ConnectAsync() => await RunAsync(async () =>
     {
-        var candidate = new SqlPurchaseRepository(ConnectionBox.Text.Trim());
+        var candidate = new EfPurchaseRepository(ConnectionBox.Text.Trim(), pricing);
         var service = new PurchaseService(pricing, candidate);
+        await Task.Run(candidate.Initialize);
         var items = await Task.Run(service.GetAll);
         repository = candidate; purchases = service; stale = false;
         Display(items);
@@ -91,7 +93,7 @@ public partial class MainWindow : Window
         await Task.Run(action);
         stale = true;
         try { await ReloadAsync(); Message("Изменения сохранены в SQL Server. Список обновлён."); }
-        catch (SqlException) { Message("Изменения уже сохранены, но чтение не удалось. Обновите список перед следующей записью.", true); }
+        catch (Exception ex) when (ex is SqlException or DbUpdateException or InvalidOperationException) { Message("Изменения уже сохранены, но чтение не удалось. Обновите список перед следующей записью.", true); }
     });
     private async Task SaveAsync(bool update)
     {
@@ -108,17 +110,6 @@ public partial class MainWindow : Window
     private async void Add_Click(object sender, RoutedEventArgs e) => await SaveAsync(false);
     private async void Update_Click(object sender, RoutedEventArgs e) => await SaveAsync(true);
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
-    private async void Snapshot_Click(object sender, RoutedEventArgs e)
-    {
-        if (repository is null) { Message("Сначала подключитесь к базе данных.", true); return; }
-        await RunAsync(async () =>
-        {
-            var table = await Task.Run(repository.GetSnapshot);
-            new Window { Owner = this, Title = "Отсоединённая модель: снимок DataTable", Width = 1050, Height = 500,
-                Content = new DataGrid { ItemsSource = table.DefaultView, IsReadOnly = true, AutoGenerateColumns = true } }.Show();
-            Message("Снимок загружен. Соединение закрыто; таблица доступна в памяти.");
-        });
-    }
     private void Cart_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (!ready) return;
