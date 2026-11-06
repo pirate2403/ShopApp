@@ -59,6 +59,19 @@ Server=(localdb)\MSSQLLocalDB;Database=ShopLabOrm;Integrated Security=True;Encry
 
 Снимок модели и миграция включены в исходники; для обычного запуска не требуется dotnet-ef. При изменении схемы следует добавлять следующую миграцию средствами EF Core, а не редактировать уже применённую начальную.
 
+## UML-диаграммы
+
+Экспорты из draw.io приложены к репозиторию и включены в [отчёт](docs/Отчёт_ЛР3.md):
+
+- [Диаграмма классов](docs/images/lab3-uml.png): PurchaseService, контракты репозитория и расчёта, их реализации, AppDbContext и PurchaseEntity.
+- [Диаграмма последовательности подключения](docs/images/lab3-sequence-connect.png): запуск → ConnectAsync → Initialize → Database.Migrate → SQL Server → загрузка покупок.
+
+![Диаграмма классов](docs/images/lab3-uml.png)
+
+![Диаграмма последовательности подключения и Code First](docs/images/lab3-sequence-connect.png)
+
+На sequence-изображении представлена страница 01 «Подключение и Code First». Блок ref ссылается на перечитывание списка через service.GetAll() и Display(items); другие страницы исходной диаграммы в PNG не приложены. Пояснения к обозначениям и вызовам приведены в отчёте. Диаграммы документируют код lab3 и не заменяют скриншоты работающего приложения и базы.
+
 ## Проверка
 
 ```powershell
