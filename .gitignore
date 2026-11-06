@@ -9,3 +9,8 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+# Локальные файлы и резервные копии SQL Server
+*.mdf
+*.ndf
+*.ldf
+*.bak

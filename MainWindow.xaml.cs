@@ -3,25 +3,31 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using ShopApp.Models;
 using ShopApp.Services;
+using ShopApp.Data;
+using Microsoft.Data.SqlClient;
 namespace ShopApp;
 
 public partial class MainWindow : Window
 {
     private readonly IProductCatalog catalog;
     private readonly IPricingService pricing;
-    private readonly PurchaseService purchases;
+    private PurchaseService? purchases;
+    private SqlPurchaseRepository? repository;
+    private bool busy;
+    private bool stale;
     private bool ready;
     public MainWindow() : this(new ProductCatalog(), new PricingService()) { }
     public MainWindow(IProductCatalog catalog, IPricingService pricing)
     {
         this.catalog = catalog;
         this.pricing = pricing;
-        purchases = new PurchaseService(pricing);
+
         InitializeComponent();
         ready = true;
         CategoryBox.ItemsSource = catalog.Categories;
         CategoryBox.SelectedIndex = 0;
-        RefreshCart();
+        Total.Content = "Нет подключения к SQL Server";
+        Loaded += async (_, _) => await ConnectAsync();
     }
     private PurchaseOptions ReadOptions() => new(GiftBox.IsChecked == true, WarrantyBox.IsChecked == true,
         InsuranceBox.IsChecked == true, Courier.IsChecked == true);
@@ -43,30 +49,75 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(CustomerName.Text))
         { CustomerName.BorderBrush = Brushes.Firebrick; Message("Введите имя покупателя.", true); }
     }
-    private void Save(bool update)
+    private async Task RunAsync(Func<Task> operation)
     {
+        if (busy) return;
+        busy = true; IsEnabled = false;
+        try { await operation(); }
+        catch (Exception ex) when (ex is SqlException or ArgumentException or InvalidOperationException)
+        { Message($"Операция не выполнена: {ex.Message}", true); }
+        finally { busy = false; IsEnabled = true; }
+    }
+    private async Task ConnectAsync() => await RunAsync(async () =>
+    {
+        var candidate = new SqlPurchaseRepository(ConnectionBox.Text.Trim());
+        var service = new PurchaseService(pricing, candidate);
+        var items = await Task.Run(service.GetAll);
+        repository = candidate; purchases = service; stale = false;
+        Display(items);
+        Message("Подключено к SQL Server. Покупки загружены.");
+    });
+    private async void Connect_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
+    private async Task ReloadAsync()
+    {
+        if (purchases is null) return;
+        Display(await Task.Run(purchases.GetAll));
+        stale = false;
+    }
+    private void Display(IReadOnlyList<Purchase> items)
+    {
+        Cart.ItemsSource = items;
+        Total.Content = $"Позиций: {items.Count} · Итого: {items.Sum(p => p.Total):N2} ₽";
+        UpdatePreview();
+    }
+    private bool CanWrite()
+    {
+        if (purchases is not null && !stale) return true;
+        Message("Подключитесь к базе и обновите список перед изменением.", true);
+        return false;
+    }
+    private async Task WriteAsync(Action action) => await RunAsync(async () =>
+    {
+        await Task.Run(action);
+        stale = true;
+        try { await ReloadAsync(); Message("Изменения сохранены в SQL Server. Список обновлён."); }
+        catch (SqlException) { Message("Изменения уже сохранены, но чтение не удалось. Обновите список перед следующей записью.", true); }
+    });
+    private async Task SaveAsync(bool update)
+    {
+        if (!CanWrite()) return;
         if (update && Cart.SelectedItem is not Purchase) return;
         if (ProductsList.SelectedItem is not Product product) { Message("Выберите товар.", true); return; }
-        try
-        {
-            // Сервис проверяет ввод и рассчитывает стоимость независимо от UI.
-            var selected = Cart.SelectedItem as Purchase;
-            var result = purchases.Save(CustomerName.Text, product, ReadOptions(), update ? selected?.Id : null);
-            RefreshCart();
-            Cart.SelectedItem = result;
-            Message(update ? "Покупка изменена." : "Покупка добавлена в корзину.");
-        }
-        catch (ArgumentException ex)
-        { CustomerName.BorderBrush = Brushes.Firebrick; CustomerName.Focus(); Message(ex.Message, true); }
+        if (string.IsNullOrWhiteSpace(CustomerName.Text))
+        { CustomerName.BorderBrush = Brushes.Firebrick; CustomerName.Focus(); Message("Введите имя покупателя.", true); return; }
+        string customer = CustomerName.Text;
+        var options = ReadOptions();
+        int? id = update ? (Cart.SelectedItem as Purchase)?.Id : null;
+        await WriteAsync(() => purchases!.Save(customer, product, options, id));
     }
-    private void Add_Click(object sender, RoutedEventArgs e) => Save(false);
-    private void Update_Click(object sender, RoutedEventArgs e) => Save(true);
-    private void Refresh_Click(object sender, RoutedEventArgs e) { RefreshCart(); Message("Список покупок обновлён."); }
-    private void RefreshCart()
+    private async void Add_Click(object sender, RoutedEventArgs e) => await SaveAsync(false);
+    private async void Update_Click(object sender, RoutedEventArgs e) => await SaveAsync(true);
+    private async void Refresh_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
+    private async void Snapshot_Click(object sender, RoutedEventArgs e)
     {
-        Cart.ItemsSource = purchases.Items.ToArray();
-        Total.Content = $"Позиций: {purchases.Items.Count} · Итого: {purchases.Items.Sum(p => p.Total):N2} ₽";
-        UpdatePreview();
+        if (repository is null) { Message("Сначала подключитесь к базе данных.", true); return; }
+        await RunAsync(async () =>
+        {
+            var table = await Task.Run(repository.GetSnapshot);
+            new Window { Owner = this, Title = "Отсоединённая модель: снимок DataTable", Width = 1050, Height = 500,
+                Content = new DataGrid { ItemsSource = table.DefaultView, IsReadOnly = true, AutoGenerateColumns = true } }.Show();
+            Message("Снимок загружен. Соединение закрыто; таблица доступна в памяти.");
+        });
     }
     private void Cart_Changed(object sender, SelectionChangedEventArgs e)
     {
@@ -81,12 +132,11 @@ public partial class MainWindow : Window
         Details.Text = p.Details;
         UpdatePreview();
     }
-    private void Delete_Click(object sender, RoutedEventArgs e)
+    private async void Delete_Click(object sender, RoutedEventArgs e)
     {
-        if (Cart.SelectedItem is not Purchase p) return;
-        purchases.Remove(p.Id);
-        RefreshCart();
-        Message("Покупка удалена.");
+        if (!CanWrite() || Cart.SelectedItem is not Purchase p) return;
+        if (MessageBox.Show($"Удалить покупку №{p.Id}?", "Удаление", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await WriteAsync(() => purchases!.Remove(p.Id));
     }
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
@@ -99,10 +149,6 @@ public partial class MainWindow : Window
         ProductsList.SelectedIndex = 0;
         UpdatePreview();
         Message("Форма очищена.");
-    }
-    private void ClearCart_Click(object sender, RoutedEventArgs e)
-    {
-        purchases.Clear(); RefreshCart(); Message("Корзина очищена.");
     }
     private void Message(string text, bool error = false)
     {

@@ -1,8 +1,9 @@
-<Window x:Class="ShopApp.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Интернет-магазин · Лабораторная №1" Width="1280" Height="980" MinWidth="1000" MinHeight="650" Background="#F3F5F9" Foreground="#233044" FontFamily="Inter, Segoe UI" FontSize="14">
+<Window x:Class="ShopApp.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Интернет-магазин · Лабораторная №2" Width="1280" Height="980" MinWidth="1000" MinHeight="650" Background="#F3F5F9" Foreground="#233044" FontFamily="Inter, Segoe UI" FontSize="14">
 <ScrollViewer VerticalScrollBarVisibility="Auto"><Grid Margin="32">
-<Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+<Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
 <StackPanel Margin="0,0,0,24"><Label Content="Интернет-магазин" FontSize="30" FontWeight="Bold"/><Label Content="Покупки и заказы · Вариант 2" Foreground="#667085"/></StackPanel>
-<Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="420"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+<StackPanel Grid.Row="1" Margin="0,0,0,16"><Label Content="SQL Server · строка подключения"/><TextBox x:Name="ConnectionBox" Padding="8" Text="Server=(localdb)\MSSQLLocalDB;Database=ShopLab;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=5"/><WrapPanel Margin="0,8,0,0"><Button Content="Подключиться / обновить" Click="Connect_Click"/><Button Content="Снимок DataTable" Click="Snapshot_Click"/></WrapPanel></StackPanel>
+<Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="420"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 <Border Background="White" CornerRadius="12" Padding="20"><StackPanel>
 <Label Content="Новая покупка" FontSize="20" FontWeight="Bold" Margin="0,0,0,16"/>
 <Label Content="Имя покупателя *" Target="{Binding ElementName=CustomerName}"/>
@@ -23,7 +24,7 @@
 <WrapPanel><Button x:Name="UpdateButton" Content="Сохранить изменения" Click="Update_Click" IsEnabled="False"/><Button x:Name="DeleteButton" Content="Удалить запись" Click="Delete_Click" IsEnabled="False" Background="Transparent" Foreground="#233044"/></WrapPanel>
 <Label x:Name="Total" FontSize="20" FontWeight="Bold" Margin="0,16"/>
 <Border x:Name="StatusPanel" Background="#EAF6EF" CornerRadius="12" Padding="16"><Label x:Name="Status" Foreground="#16754A" Padding="0"><TextBlock Text="Заполните имя и выберите товар." TextWrapping="Wrap"/></Label></Border>
-<Button Content="Очистить корзину" Click="ClearCart_Click" HorizontalAlignment="Left" Background="Transparent" Foreground="#667085" Margin="0,16,0,0"/>
+
 </StackPanel></Border></Grid>
-<Label Grid.Row="2" Content="Лабораторная работа №1 · Данные хранятся до закрытия приложения" FontSize="12" Foreground="#667085" Margin="0,20,0,0"/>
+<Label Grid.Row="3" Content="Лабораторная работа №2 · Покупки сохраняются в SQL Server" FontSize="12" Foreground="#667085" Margin="0,20,0,0"/>
 </Grid></ScrollViewer></Window>
