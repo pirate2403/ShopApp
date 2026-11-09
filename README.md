@@ -39,15 +39,15 @@ dotnet run --project ShopApp.csproj
 
 ## Архитектура и ADO.NET
 
-| Часть | Назначение |
-| --- | --- |
-| Models | Неизменяемые типы Product, PurchaseOptions, Purchase |
-| IProductCatalog / ProductCatalog | Каталог товаров |
-| IPricingService / PricingService | Расчёт стоимости |
-| PurchaseService | Валидация и координация операций через IPurchaseRepository |
-| IPurchaseRepository | Контракт хранения, независимый от SQL Server |
-| SqlPurchaseRepository | SqlConnection, параметризованные SqlCommand, чтение и запись |
-| MainWindow | Форма, события, привязка результатов и отображение ошибок |
+| Часть                            | Назначение                                                   |
+| -------------------------------- | ------------------------------------------------------------ |
+| Models                           | Неизменяемые типы Product, PurchaseOptions, Purchase         |
+| IProductCatalog / ProductCatalog | Каталог товаров                                              |
+| IPricingService / PricingService | Расчёт стоимости                                             |
+| PurchaseService                  | Валидация и координация операций через IPurchaseRepository   |
+| IPurchaseRepository              | Контракт хранения, независимый от SQL Server                 |
+| SqlPurchaseRepository            | SqlConnection, параметризованные SqlCommand, чтение и запись |
+| MainWindow                       | Форма, события, привязка результатов и отображение ошибок    |
 
 Сохранено разделение ответственности и зависимость сервиса от интерфейса репозитория; тесты подставляют реализацию в памяти.
 
@@ -100,5 +100,3 @@ dotnet publish ShopApp.csproj -c Release -r win-x64 --self-contained true -o pub
 ```
 
 Передавайте всю папку publish. SQL Server и базу на компьютере назначения настраивают отдельно. Для ARM64 замените win-x64 на win-arm64.
-
-После общего задания необходимо получить дополнительное задание у преподавателя. Его условия пока не предоставлены.
